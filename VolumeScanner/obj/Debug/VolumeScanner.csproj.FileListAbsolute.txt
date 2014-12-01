@@ -1,0 +1,15 @@
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.Properties.Resources.resources
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.csproj.GenerateResource.Cache
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\bin\Debug\VolumeScanner.pdb
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\bin\Debug\Microsoft.Kinect.dll
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\bin\Debug\Microsoft.Kinect.Fusion.dll
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\bin\Debug\Microsoft.Kinect.xml
+c:\users\kevin\documents\visual studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.pdb
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\bin\Debug\VolumeScanner.dll.config
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\bin\Debug\VolumeScanner.dll
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debug\VolumeScanner.pdb
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.Display.resources
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debug\VolumeScanner.exe.config
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debug\VolumeScanner.exe
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.exe
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.csprojResolveAssemblyReference.cache
