@@ -13,3 +13,7 @@ C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debu
 C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debug\VolumeScanner.exe
 C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.exe
 C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.csprojResolveAssemblyReference.cache
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debug\VolumeScanner.exe.manifest
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner(dll)\bin\Debug\VolumeScanner.application
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.exe.manifest
+C:\Users\Kevin\Documents\Visual Studio 2013\Projects\VolumeScanner\VolumeScanner\obj\Debug\VolumeScanner.application

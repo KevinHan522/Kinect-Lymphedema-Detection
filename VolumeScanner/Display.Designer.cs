@@ -44,6 +44,7 @@
             this.depStSlider = new System.Windows.Forms.TrackBar();
             this.depStLbl = new System.Windows.Forms.Label();
             this.label7 = new System.Windows.Forms.Label();
+            this.dumpButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.weightSlider)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.threshSlider)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.frameSlider)).BeginInit();
@@ -202,11 +203,21 @@
             this.label7.TabIndex = 16;
             this.label7.Text = "Integration Depth Start";
             // 
+            // dumpButton
+            // 
+            this.dumpButton.Location = new System.Drawing.Point(376, 634);
+            this.dumpButton.Name = "dumpButton";
+            this.dumpButton.Size = new System.Drawing.Size(142, 31);
+            this.dumpButton.TabIndex = 17;
+            this.dumpButton.Text = "Dump Depth Frame Data";
+            this.dumpButton.UseVisualStyleBackColor = true;
+            // 
             // Display
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(893, 691);
+            this.Controls.Add(this.dumpButton);
             this.Controls.Add(this.label7);
             this.Controls.Add(this.depStLbl);
             this.Controls.Add(this.depStSlider);
@@ -225,6 +236,7 @@
             this.Controls.Add(this.weightSlider);
             this.Name = "Display";
             this.Text = "Display";
+            this.Load += new System.EventHandler(this.Display_Load);
             ((System.ComponentModel.ISupportInitialize)(this.weightSlider)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.threshSlider)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.frameSlider)).EndInit();
@@ -252,6 +264,7 @@
         private System.Windows.Forms.TrackBar depStSlider;
         private System.Windows.Forms.Label depStLbl;
         private System.Windows.Forms.Label label7;
+        private System.Windows.Forms.Button dumpButton;
 
     }
 }

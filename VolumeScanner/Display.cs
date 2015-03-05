@@ -27,6 +27,11 @@ namespace VolumeScanner
 
         }
 
+        private void Display_Load(object sender, EventArgs e)
+        {
+
+        }
+
 
         
     }
