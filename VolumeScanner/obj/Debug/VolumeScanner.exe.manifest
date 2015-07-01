@@ -3,7 +3,7 @@
   <asmv1:assemblyIdentity name="VolumeScanner.exe" version="1.0.0.5" publicKeyToken="0000000000000000" language="neutral" processorArchitecture="msil" type="win32" />
   <application />
   <entryPoint>
-    <assemblyIdentity name="VolumeScanner" version="1.0.5540.22879" language="neutral" processorArchitecture="msil" />
+    <assemblyIdentity name="VolumeScanner" version="1.0.5589.20365" language="neutral" processorArchitecture="msil" />
     <commandLine file="VolumeScanner.exe" parameters="" />
   </entryPoint>
   <trustInfo>
@@ -66,14 +66,14 @@
     </dependentAssembly>
   </dependency>
   <dependency>
-    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="VolumeScanner.exe" size="36352">
-      <assemblyIdentity name="VolumeScanner" version="1.0.5540.22879" language="neutral" processorArchitecture="msil" />
+    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="VolumeScanner.exe" size="35840">
+      <assemblyIdentity name="VolumeScanner" version="1.0.5589.20365" language="neutral" processorArchitecture="msil" />
       <hash>
         <dsig:Transforms>
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>Qqq1sOeaH28bemRb3SE667TNOMe47EDv5y6P+1jPPEE=</dsig:DigestValue>
+        <dsig:DigestValue>/rg7KbYWs/3hSaZuw7eCFQSUH8LGnCM5+qpwRm+3VcI=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>

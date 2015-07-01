@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Forms;
 using System.Drawing;
 using Microsoft.Kinect;
+using System.Drawing.Imaging;
 
 namespace VolumeScanner
 {
@@ -24,6 +25,10 @@ namespace VolumeScanner
             Application.SetCompatibleTextRenderingDefault(false);
 
             Form form = new Display();
+            form.FormBorderStyle = FormBorderStyle.FixedDialog;
+            form.MaximizeBox = false;
+            form.MinimizeBox = false;
+            form.StartPosition = FormStartPosition.CenterScreen;
 
             //thread for running kinect functions
             Thread KinectThread = new Thread(WorkerThreadProc);
@@ -35,19 +40,20 @@ namespace VolumeScanner
         static void WorkerThreadProc()
         {
             //ensures form exists before any sort of running
-            while (true)
+            
+            while (Display.ActiveForm == null)
             {
-                while (Display.ActiveForm == null)
-                {
-                }
-                //creates a new volume scanner class
-                //realistically, it would be a better idea to make this a library
-                KinectVolumeScanner scanner = new KinectVolumeScanner();
-                while (Display.ActiveForm != null)
-                {
-                    scanner.Run();
-                }
             }
+            //creates a new volume scanner class
+            //realistically, it would be a better idea to make this a library
+            
+            if (Display.ActiveForm != null)
+            {
+                Form mainForm = Display.ActiveForm;
+                KinectVolumeScanner scanner = new KinectVolumeScanner(mainForm);
+                scanner.Run();
+            }
+            
         }
     }
 
@@ -133,6 +139,8 @@ namespace VolumeScanner
         private ManualResetEvent workerThreadStopEvent = null;
         private Thread FrameThread = null;
 
+        private Control mainForm;
+
         //graphics variables
         private Graphics graphics = null;
         private Form control = null;
@@ -142,8 +150,8 @@ namespace VolumeScanner
         private Label threshLabel = null;
         private TrackBar frameSlider = null;
         private Label frameLabel = null;
-        private TrackBar depthStartSlider = null;
-        private Label depthStartLabel = null;
+        //private TrackBar depthStartSlider = null;
+        //private Label depthStartLabel = null;
         private Button smoothButton = null;
         private Button colorButton = null;
         private Button dumpButton = null;
@@ -164,6 +172,7 @@ namespace VolumeScanner
         //the threshold to use for adding pixels to a cluster, fairly arbitrary
         private int absoluteThreshold;
 
+        private const double OPTIMUM_DEPTH = .87;
 
         //point struct, basically just a point in 3D
         private struct Point3D:IEquatable<Point3D>
@@ -218,19 +227,19 @@ namespace VolumeScanner
             
         }
 
-        public KinectVolumeScanner()
+        public KinectVolumeScanner(Form form)
         {
             //gets the Kinect sensor
             sensor = KinectSensor.GetDefault();
             
             //opens the body reader
-            bodyReader = sensor.BodyFrameSource.OpenReader();
+            //bodyReader = sensor.BodyFrameSource.OpenReader();
 
             //opens the sensor
             sensor.Open();
 
             //open the multiframe reader to take in depth and color
-            reader = sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Depth | FrameSourceTypes.Color);
+            reader = sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Depth | FrameSourceTypes.Color | FrameSourceTypes.Body);
             //reader = sensor.OpenMultiSourceFrameReader(FrameSourceTypes.Depth | FrameSourceTypes.Color | FrameSourceTypes.Infrared);
 
             //get frame information (such as dimensions) and initialize variables
@@ -265,8 +274,10 @@ namespace VolumeScanner
             FrameThread.Start();
 
             //initialize all graphics-related controls
-            graphics = Display.ActiveForm.CreateGraphics();
-            control = Display.ActiveForm;
+            mainForm = form;
+
+            graphics = mainForm.CreateGraphics();
+            control = (Form) mainForm;
             control.MouseClick += Control_MouseClick;
             weightSlider = (TrackBar)(control.Controls["weightSlider"]);
             weightSlider.Scroll += Weight_Scroll;
@@ -277,9 +288,11 @@ namespace VolumeScanner
             frameSlider = (TrackBar)(control.Controls["frameSlider"]);
             frameSlider.Scroll += Frame_Scroll;
             frameLabel = (Label)(control.Controls["intValueLbl"]);
+ /*
             depthStartSlider = (TrackBar)(control.Controls["depStSlider"]);
             depthStartLabel = (Label)(control.Controls["depStLbl"]);
             depthStartSlider.Scroll += DepthStart_Scroll;
+  */
             smoothButton = (Button)(control.Controls["smoothButton"]);
             smoothButton.Click += Smooth_Click;
             colorButton = (Button)(control.Controls["colorButton"]);
@@ -291,7 +304,7 @@ namespace VolumeScanner
             depthStart = 500;
 
             //initialize to higher segmentation on depth
-            depthWeight = .80;
+            depthWeight = .60;
             colorWeight = 1 - depthWeight;
 
             //initialize to a relatively high threshold
@@ -305,11 +318,10 @@ namespace VolumeScanner
         {         
             //attach frame arrival event to the Reader_MultiSourceFrameArrived method
             reader.MultiSourceFrameArrived += Reader_MultiSourceFrameArrived;
-            //same for body
-            bodyReader.FrameArrived += Reader_BodySourceFrameArrived;
 
-            //how often to check for a volume cluster
-            int timer = 5;
+            //timer counters for how often to check for a volume cluster
+            int timer = 50;
+            int timer2 = 5;
 
             //depth clip range, this is the default when no bodies are detected
             double depthClipMin = 0;
@@ -320,7 +332,10 @@ namespace VolumeScanner
             {              
                 //bitmap images to display on screen
                 Bitmap img = new Bitmap(depthWidth, depthHeight);   
-                Bitmap img2 = new Bitmap(depthWidth, depthHeight);
+                //Bitmap img2 = new Bitmap(depthWidth, depthHeight);
+                BitmapData imgData = img.LockBits(new Rectangle(0, 0, depthWidth, depthHeight), System.Drawing.Imaging.ImageLockMode.ReadWrite, img.PixelFormat);
+                //img2.LockBits(new Rectangle(0, 0, depthWidth, depthHeight), System.Drawing.Imaging.ImageLockMode.ReadWrite, img2.PixelFormat);
+
 
                 
                 lock (this)
@@ -329,13 +344,20 @@ namespace VolumeScanner
                     //cameraSpaceFactors = mapper.GetDepthFrameToCameraSpaceTable();
                     //map color data to the depth data
                     MapColorToDepth();
+                    bool hasDrawn = false;
+
+                    int[] depthColors = new int[depthWidth * depthHeight];
+                    IntPtr ptr = imgData.Scan0;
                     //if color is enabled, set the image to the color data
                     if (colorEnabled)
-                    {     
+                    {
+                        depthColors = alignedColorImagePixels;
+                        //System.Runtime.InteropServices.Marshal.Copy(alignedColorImagePixels, 0, ptr, depthWidth * depthHeight);
+                        /*
                         for (int i = 0; i < depthWidth * depthHeight; i++)
                         {
                             img.SetPixel(i % depthWidth, i / depthWidth, Color.FromArgb(alignedColorImagePixels[i]));
-                        }
+                        }*/
                         /*
                         for (int i = 0; i < depthWidth * depthHeight; i++)
                         {
@@ -343,13 +365,27 @@ namespace VolumeScanner
                         }
                         */
                     }
+
+
                     //otherwise, color a depth representation, darker is farther, lighter is closer
                     else
                     {
+                        Parallel.For(0, depthHeight, i =>
+                            {
+                                for (int j = 0; j < depthWidth; j++)
+                                {
+                                    depthColors[i * depthWidth + j] = (Color.FromArgb((int)((Math.Min(Math.Max((avgDepthImagePixels[i * depthWidth + j] - depthClipMin), 0) / (depthClipMax - depthClipMin), 1) * 255)), Color.Blue)).ToArgb();
+                                }
+                            }
+                        );
+
+                        //System.Runtime.InteropServices.Marshal.Copy(depthIntensities, 0, ptr, depthWidth * depthHeight);
+
+                        /*
                         for (int i = 0; i < depthWidth * depthHeight; i++)
                         {
                             img.SetPixel(i % depthWidth, i / depthWidth, Color.FromArgb((int)((Math.Min(Math.Max((avgDepthImagePixels[i] - depthClipMin) , 0) / (depthClipMax - depthClipMin), 1) * 255)), Color.Blue));
-                        }
+                        }*/
                     }
                     //if a body is tracked, then do volume cluster finding and calculation
                     if (bodies != null)
@@ -357,6 +393,7 @@ namespace VolumeScanner
                         
 
                         //map them to depth space for GUI purposes
+                        DepthSpacePoint spine = mapper.MapCameraPointToDepthSpace(bodyJoints.spine);
                         DepthSpacePoint elbowLeft = mapper.MapCameraPointToDepthSpace(bodyJoints.leftElbow);
                         DepthSpacePoint elbowRight = mapper.MapCameraPointToDepthSpace(bodyJoints.rightElbow);
                         DepthSpacePoint handLeft = mapper.MapCameraPointToDepthSpace(bodyJoints.leftHand);
@@ -427,86 +464,174 @@ namespace VolumeScanner
                         //only do so if timer has been reset
                         if (timer <= 0)
                         {
+                            //threshold for how far spine can be from OPTIMUM_DEPTH
+                            double spineDiffThresh = .01;
                             //threshold for how different shoulder depths can be
-                            double shoulderDiffThresh = .08;
+                            double shoulderDiffThresh = .06;
                             //threshold for how different elbow depths can be
-                            double elbowDiffThresh = .12;
+                            double elbowDiffThresh = .04;
                             //threshold for how different hand depths can be
-                            double handDiffThresh = .16;
+                            double handDiffThresh = .05;
 
                             //alter the depth clip range to focus around the body
-                            depthClipMin = 1000 * bodyJoints.spine.Z - 300;
-                            depthClipMax = 1000 * bodyJoints.spine.Z + 300;
+                            if (bodyJoints.spine.Z != 0)
+                            {
+                                depthClipMin = 1000 * bodyJoints.spine.Z - 300;
+                                depthClipMax = 1000 * bodyJoints.spine.Z + 300;
+                            }
 
                             //find the depth differences between each body joint
-                            double elbowDiff = bodyJoints.rightElbow.Z - bodyJoints.leftElbow.Z;
-                            double shoulderDiff = bodyJoints.rightShoulder.Z - bodyJoints.leftShoulder.Z;
-                            double handDiff = bodyJoints.rightHand.Z - bodyJoints.leftHand.Z;
-
+                            double leftElbowDiff = bodyJoints.spine.Z - bodyJoints.leftElbow.Z;
+                            double rightElbowDiff = bodyJoints.spine.Z - bodyJoints.rightElbow.Z;
+                            double leftShoulderDiff = bodyJoints.spine.Z - bodyJoints.leftShoulder.Z;
+                            double rightShoulderDiff = bodyJoints.spine.Z - bodyJoints.rightShoulder.Z;
+                            double leftHandDiff = bodyJoints.spine.Z - bodyJoints.leftHand.Z;
+                            double rightHandDiff = bodyJoints.spine.Z - bodyJoints.rightHand.Z;
+                            double spineDiff = bodyJoints.spine.Z - OPTIMUM_DEPTH;
                             
                             
                             //draw a red box over any joints that are too far back behind the other joint
+                            //draw box over spine indicating too close/too far
+                            //red too far back, blue too far forward
                             try
                             {
-                                if (elbowDiff > elbowDiffThresh)
+                                if (Math.Abs(spineDiff) > spineDiffThresh)
                                 {
-                                    for (int j = (int)elbowRight.Y - 10; j < elbowRight.Y + 10; j++)
+                                    Color c;
+
+                                    if (spineDiff < 0)
                                     {
-                                        for (int i = (int)elbowRight.X - 10; i < elbowRight.X + 10; i++)
+                                        c = Color.DarkBlue;
+                                    }
+                                    else
+                                    {
+                                        c = Color.DarkRed;
+                                    }
+
+
+                                    for (int j = (int)spine.Y - 10; j < spine.Y + 10; j++)
+                                    {
+                                        for (int i = (int)spine.X - 10; i < spine.X + 10; i++)
                                         {
-                                            img2.SetPixel(i, j, Color.Red);
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
                                         }
                                     }
                                 }
-                                else if (elbowDiff < -elbowDiffThresh)
+
+                                if (Math.Abs(leftElbowDiff) > elbowDiffThresh)
                                 {
+                                    Color c;
+                                    if (leftElbowDiff > 0)
+                                    {
+                                        c = Color.Blue;
+                                    }
+                                    else
+                                    {
+                                        c = Color.Red;
+                                    }
                                     for (int j = (int)elbowLeft.Y - 10; j < elbowLeft.Y + 10; j++)
                                     {
                                         for (int i = (int)elbowLeft.X - 10; i < elbowLeft.X + 10; i++)
                                         {
-                                            img2.SetPixel(i, j, Color.Red);
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
                                         }
                                     }
                                 }
 
-                                if (shoulderDiff > shoulderDiffThresh)
+                                if (Math.Abs(rightElbowDiff) > elbowDiffThresh)
                                 {
-                                    for (int j = (int)shoulderRight.Y - 10; j < shoulderRight.Y + 10; j++)
+                                    Color c;
+                                    if (rightElbowDiff > 0)
                                     {
-                                        for (int i = (int)shoulderRight.X - 10; i < shoulderRight.X + 10; i++)
+                                        c = Color.Blue;
+                                    }
+                                    else
+                                    {
+                                        c = Color.Red;
+                                    }
+                                    for (int j = (int)elbowRight.Y - 10; j < elbowRight.Y + 10; j++)
+                                    {
+                                        for (int i = (int)elbowRight.X - 10; i < elbowRight.X + 10; i++)
                                         {
-                                            img2.SetPixel(i, j, Color.Red);
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
                                         }
                                     }
                                 }
-                                else if (shoulderDiff < -shoulderDiffThresh)
+
+                                if (Math.Abs(leftShoulderDiff) > shoulderDiffThresh)
                                 {
+                                    Color c;
+                                    if (leftShoulderDiff > 0)
+                                    {
+                                        c = Color.Blue;
+                                    }
+                                    else
+                                    {
+                                        c = Color.Red;
+                                    }
                                     for (int j = (int)shoulderLeft.Y - 10; j < shoulderLeft.Y + 10; j++)
                                     {
                                         for (int i = (int)shoulderLeft.X - 10; i < shoulderLeft.X + 10; i++)
                                         {
-                                            img2.SetPixel(i, j, Color.Red);
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
+                                        }
+                                    }
+                                }
+                                if (Math.Abs(rightShoulderDiff) > shoulderDiffThresh)
+                                {
+                                    Color c;
+                                    if (rightShoulderDiff > 0)
+                                    {
+                                        c = Color.Blue;
+                                    }
+                                    else
+                                    {
+                                        c = Color.Red;
+                                    }
+                                    for (int j = (int)shoulderRight.Y - 10; j < shoulderRight.Y + 10; j++)
+                                    {
+                                        for (int i = (int)shoulderRight.X - 10; i < shoulderRight.X + 10; i++)
+                                        {
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
                                         }
                                     }
                                 }
 
-                                if (handDiff > handDiffThresh)
+                                if (Math.Abs(leftHandDiff) > handDiffThresh)
                                 {
-                                    for (int j = (int)handRight.Y - 10; j < handRight.Y + 10; j++)
+                                    Color c;
+                                    if (leftHandDiff > 0)
                                     {
-                                        for (int i = (int)handRight.X - 10; i < handRight.X + 10; i++)
-                                        {
-                                            img2.SetPixel(i, j, Color.Red);
-                                        }
+                                        c = Color.Blue;
                                     }
-                                }
-                                else if (handDiff < -handDiffThresh)
-                                {
+                                    else
+                                    {
+                                        c = Color.Red;
+                                    }
                                     for (int j = (int)handLeft.Y - 10; j < handLeft.Y + 10; j++)
                                     {
                                         for (int i = (int)handLeft.X - 10; i < handLeft.X + 10; i++)
                                         {
-                                            img2.SetPixel(i, j, Color.Red);
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
+                                        }
+                                    }
+                                }
+                                if (Math.Abs(rightHandDiff) > handDiffThresh)
+                                {
+                                    Color c;
+                                    if (rightHandDiff > 0)
+                                    {
+                                        c = Color.Blue;
+                                    }
+                                    else
+                                    {
+                                        c = Color.Red;
+                                    }
+                                    for (int j = (int)handRight.Y - 10; j < handRight.Y + 10; j++)
+                                    {
+                                        for (int i = (int)handRight.X - 10; i < handRight.X + 10; i++)
+                                        {
+                                            depthColors[j * depthWidth + i] = c.ToArgb();
                                         }
                                     }
                                 }
@@ -517,12 +642,19 @@ namespace VolumeScanner
                             }
 
                             //only continue to volume calculation if the joints are relatively close enough on distance
-                            if (Math.Abs(elbowDiff) <= elbowDiffThresh && Math.Abs(shoulderDiff) <= shoulderDiffThresh && Math.Abs(handDiff) <= handDiffThresh && bodyJoints.rightElbow.Z != 0 && bodyJoints.leftElbow.Z != 0)
+                            if (Math.Abs(spineDiff) <= spineDiffThresh && Math.Abs(leftElbowDiff) <= elbowDiffThresh && Math.Abs(rightElbowDiff) <= elbowDiffThresh && Math.Abs(leftShoulderDiff) <= shoulderDiffThresh && Math.Abs(rightShoulderDiff) <= shoulderDiffThresh && Math.Abs(leftHandDiff) <= handDiffThresh && Math.Abs(rightHandDiff) <= handDiffThresh && bodyJoints.rightElbow.Z != 0 && bodyJoints.leftElbow.Z != 0)
                             {
-
+                                timer2--;
+                            }
+                            else
+                            {
+                                timer2 = 5;
+                            }
+                            if (timer2 <= 0)
+                            {
                                 //avgDepthImagePixels = SmoothDepthFrame(avgDepthImagePixels);
                                 //reset timer
-                                timer = 8;
+                                timer = 1;
 
                                 //use the elbows as the starting pixel for the clusters
                                 DepthSpacePoint leftElbowD = mapper.MapCameraPointToDepthSpace(bodyJoints.leftElbow);
@@ -533,7 +665,6 @@ namespace VolumeScanner
                                 DepthSpacePoint rightHandD = mapper.MapCameraPointToDepthSpace(bodyJoints.rightHand);
                                 isProcessing = true;
                                 //avgDepthImagePixels.CopyTo(workingAvgDepthImagePixels, 0);
-
 
                                 //map depth data to real space
                                 mapper.MapDepthFrameToCameraSpace(workingAvgDepthImagePixels, cameraSpacePoints);
@@ -546,68 +677,54 @@ namespace VolumeScanner
                                 //get volume depths and center pixels for both arms
                                 List<Point3D> volumeDepths1 = new List<Point3D>();
                                 Point3D center1 = new Point3D((int)leftElbowD.X, (int)leftElbowD.Y, workingAvgDepthImagePixels[(int)(leftElbowD.Y * depthWidth + leftElbowD.X)]);
-                                int[] arr1 = FindClusterBounded(center1, (int)leftHandD.X + 2, (int)leftShoulderD.X, 0, (int)leftHandD.Y - 2, workingAvgDepthImagePixels, xMaxDepths1, yMaxDepths1);
+                                int[] arr1 = FindClusterBounded(center1, (int)leftHandD.X + 2, (int)leftShoulderD.X - 3, (int) leftShoulderD.Y - 2, (int)leftHandD.Y - 2, workingAvgDepthImagePixels, xMaxDepths1, yMaxDepths1);
                                 List<Point3D> volumeDepths2 = new List<Point3D>();
                                 Point3D center2 = new Point3D((int)rightElbowD.X, (int)rightElbowD.Y, workingAvgDepthImagePixels[(int)(rightElbowD.Y * depthWidth + rightElbowD.X)]);
-                                int[] arr2 = FindClusterBounded(center2, (int)rightShoulderD.X, (int)rightHandD.X - 2, 0, (int)rightHandD.Y - 2, workingAvgDepthImagePixels, xMaxDepths2, yMaxDepths2);
+                                int[] arr2 = FindClusterBounded(center2, (int)rightShoulderD.X + 3, (int)rightHandD.X - 2, (int) rightShoulderD.Y - 2, (int)rightHandD.Y - 2, workingAvgDepthImagePixels, xMaxDepths2, yMaxDepths2);
+
                                 for (int i = 0; i < depthWidth * depthHeight; i++)
                                 {
                                     double dep = workingAvgDepthImagePixels[i];
                                     if (arr1[i] == 1 && dep != 0)
                                     {
                                         volumeDepths1.Add(new Point3D(i % depthWidth, i / depthWidth, dep, cameraSpacePoints[i]));
+                                        depthColors[i] = (Color.FromArgb(140, Color.Purple)).ToArgb();
                                     }
                                     if (arr2[i] == 1 && dep != 0)
                                     {
                                         volumeDepths2.Add(new Point3D(i % depthWidth, i / depthWidth, dep, cameraSpacePoints[i]));
+                                        depthColors[i] = (Color.FromArgb(140, Color.Purple)).ToArgb();
                                     }
                                 }
-                                
-                                //Note that under the pixel coordinate system, the highest y point has a lower y value than the lowest y point
-
-                                double maxDepthLeft = 0;
-                                double minDepthLeft = 1000000000;
-
-                                //color pixel purple for every point that is in the cluster
-                                foreach (Point3D p in volumeDepths1)
-                                {
-                                    img2.SetPixel(p.x, p.y, Color.FromArgb(140, Color.Purple));
-
-                                    if (maxDepthLeft < p.z) maxDepthLeft = p.z;
-                                    if (minDepthLeft > p.z) minDepthLeft = p.z;
-                                }
-
-                                double maxDepthRight = 0;
-                                double minDepthRight = 1000000000;
-                                foreach (Point3D p in volumeDepths2)
-                                {
-                                    img2.SetPixel(p.x, p.y, Color.FromArgb(140, Color.Purple));
-
-                                    if (maxDepthRight < p.z) maxDepthRight = p.z;
-                                    if (minDepthRight > p.z) minDepthRight = p.z;
-                                }
-
 
                                 //draw everything
-                                if (Display.ActiveForm == null)
+                                if (mainForm.IsDisposed == true)
                                 {
                                     break;
                                 }
-                                graphics.Clear(Color.White);
-                                graphics.DrawImage(img, new Point(0, 0));
-                                graphics.DrawImage(img2, new Point(0, 0));
-                                graphics.DrawString("Shoulder Left: " + Math.Round(bodyJoints.leftShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 10));
-                                graphics.DrawString("Elbow Left: " + Math.Round(bodyJoints.leftElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 20));
-                                graphics.DrawString("Hand Left: " + Math.Round(bodyJoints.leftHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 30));
-                                graphics.DrawString("Shoulder Right: " + Math.Round(bodyJoints.rightShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 10));
-                                graphics.DrawString("Elbow Right: " + Math.Round(bodyJoints.rightElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 20));
-                                graphics.DrawString("Hand Right: " + Math.Round(bodyJoints.rightHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 30));
-                                graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2 - 3, depthHeight / 2), new Point(depthWidth / 2 + 3, depthHeight / 2));
-                                graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2, depthHeight / 2 - 3), new Point(depthWidth / 2, depthHeight / 2 + 3));
-                                
+                                try
+                                {
+                                    img.UnlockBits(imgData);
 
-                                Console.WriteLine("Min depth for left: " + minDepthLeft);
-                                Console.WriteLine("Min depth for right: " + minDepthRight);
+                                    System.Runtime.InteropServices.Marshal.Copy(depthColors, 0, ptr, depthWidth * depthHeight);
+
+                                    graphics.Clear(Color.White);
+                                    graphics.DrawImage(img, new Point(0, 0));
+                                    graphics.DrawString("Shoulder Left: " + Math.Round(bodyJoints.leftShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 10));
+                                    graphics.DrawString("Elbow Left: " + Math.Round(bodyJoints.leftElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 20));
+                                    graphics.DrawString("Hand Left: " + Math.Round(bodyJoints.leftHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 30));
+                                    graphics.DrawString("Shoulder Right: " + Math.Round(bodyJoints.rightShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 10));
+                                    graphics.DrawString("Elbow Right: " + Math.Round(bodyJoints.rightElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 20));
+                                    graphics.DrawString("Hand Right: " + Math.Round(bodyJoints.rightHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 30));
+                                    graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2 - 3, depthHeight / 2), new Point(depthWidth / 2 + 3, depthHeight / 2));
+                                    graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2, depthHeight / 2 - 3), new Point(depthWidth / 2, depthHeight / 2 + 3));
+                                    hasDrawn = true;
+                                }
+                                catch(Exception e)
+                                {
+                                    break;
+                                }
+
                                 //integrate depths
                                 /*
                                 double leftAlign = (.001 * IntegrateDepths(volumeDepths1, bodyJoints.spine.Z * 1000));
@@ -616,28 +733,27 @@ namespace VolumeScanner
                                 Console.WriteLine("Volume of Right: " + rightAlign + " cm^3");
                                 */
                                 
-                                double leftLine = (.001 * IntegrateDepths(volumeDepths1, bodyJoints.leftHand.X * 1000, bodyJoints.leftHand.Z * 1000, bodyJoints.leftElbow.X * 1000, bodyJoints.leftElbow.Z * 1000, bodyJoints.leftShoulder.X * 1000, bodyJoints.leftShoulder.Z * 1000));
+                                /*
+                                double leftLine = (.001 * IntegrateDepths(volumeDepths1, arr1, bodyJoints.leftHand.X * 1000, bodyJoints.leftHand.Z * 1000, bodyJoints.leftElbow.X * 1000, bodyJoints.leftElbow.Z * 1000, bodyJoints.leftShoulder.X * 1000, bodyJoints.leftShoulder.Z * 1000));
                                 Console.WriteLine("Volume of Left (Line) : " + leftLine + " cm^3");
-                                double rightLine = (.001 * IntegrateDepths(volumeDepths2, bodyJoints.rightHand.X * 1000, bodyJoints.rightHand.Z * 1000, bodyJoints.rightElbow.X * 1000, bodyJoints.rightElbow.Z * 1000, bodyJoints.rightShoulder.X * 1000, bodyJoints.rightShoulder.Z * 1000));
+                                double rightLine = (.001 * IntegrateDepths(volumeDepths2, arr2, bodyJoints.rightHand.X * 1000, bodyJoints.rightHand.Z * 1000, bodyJoints.rightElbow.X * 1000, bodyJoints.rightElbow.Z * 1000, bodyJoints.rightShoulder.X * 1000, bodyJoints.rightShoulder.Z * 1000));
                                 Console.WriteLine("Volume of Right (Line) : " + rightLine + " cm^3");
+                                 */
                                 
-                                 
-                                double leftMax = (.001 * IntegrateDepths(volumeDepths1, xMaxDepths1, yMaxDepths1));
+                                double leftMax = (.001 * IntegrateDepths(volumeDepths1, arr1, xMaxDepths1, yMaxDepths1));
                                 Console.WriteLine("Volume of Left (Maxes) : " + leftMax + " cm^3");
-                                double rightMax = (.001 * IntegrateDepths(volumeDepths2, xMaxDepths2, yMaxDepths2));
+                                double rightMax = (.001 * IntegrateDepths(volumeDepths2, arr2, xMaxDepths2, yMaxDepths2));
                                 Console.WriteLine("Volume of Right (Maxes) : " + rightMax + " cm^3");
                                 
                                 string uniqueIdentifier = DateTime.Now.ToString("dd-MM-yyyy_hh-mm-ss").Substring(0,5);
-                                System.IO.File.AppendAllText(@"C:\Users\Kevin\Kinect\Data" + uniqueIdentifier + ".txt", "" + leftLine + " " + leftMax + " " + rightLine + " " + rightMax + Environment.NewLine);
+                                System.IO.File.AppendAllText(@"C:\Users\Kevin\Kinect\Data" + uniqueIdentifier + ".txt", "" + leftMax + " " + rightMax + " " + bodyJoints.spine.Z + Environment.NewLine);
+                                //System.IO.File.AppendAllText(@"C:\Users\Kevin\Kinect\Data" + uniqueIdentifier + ".txt", "" + leftLine + " " + leftMax + " " + rightLine + " " + rightMax + " " + bodyJoints.spine.Z + Environment.NewLine);
                                 //System.IO.File.AppendAllText(@"C:\Users\Kevin\Kinect\Data" + uniqueIdentifier + ".txt", "" + leftAlign + " " + rightAlign + Environment.NewLine);
 
                                 isProcessing = false;
                                 
                             }
-                            else
-                            {
-
-                            }
+                            
                         }
                     }
                     else
@@ -645,26 +761,35 @@ namespace VolumeScanner
                         depthClipMin = 0;
                         depthClipMax = 6000;
                     }
-
-                    //draw everything
-                    if (Display.ActiveForm == null)
+                    if (!hasDrawn)
                     {
-                        break;
-                    }
-                    graphics.Clear(Color.White);
-                    graphics.DrawImage(img, new Point(0, 0));
-                    graphics.DrawImage(img2, new Point(0, 0));
-                    graphics.DrawString("Shoulder Left: " + Math.Round(bodyJoints.leftShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 10));
-                    graphics.DrawString("Elbow Left: " + Math.Round(bodyJoints.leftElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 20));
-                    graphics.DrawString("Hand Left: " + Math.Round(bodyJoints.leftHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 30));
-                    graphics.DrawString("Shoulder Right: " + Math.Round(bodyJoints.rightShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 10));
-                    graphics.DrawString("Elbow Right: " + Math.Round(bodyJoints.rightElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 20));
-                    graphics.DrawString("Hand Right: " + Math.Round(bodyJoints.rightHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 30));
-                    graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2 - 3, depthHeight / 2), new Point(depthWidth / 2 + 3, depthHeight / 2));
-                    graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2, depthHeight / 2 - 3), new Point(depthWidth / 2, depthHeight / 2 + 3));
+                        //draw everything
+                        if (mainForm.IsDisposed == true)
+                        {
+                            break;
+                        }
+                        try
+                        {
+                            System.Runtime.InteropServices.Marshal.Copy(depthColors, 0, ptr, depthWidth * depthHeight);
+                            img.UnlockBits(imgData);
+                            graphics.Clear(Color.White);
+                            graphics.DrawImage(img, new Point(0, 0));
+                            graphics.DrawString("Shoulder Left: " + Math.Round(bodyJoints.leftShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 10));
+                            graphics.DrawString("Elbow Left: " + Math.Round(bodyJoints.leftElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 20));
+                            graphics.DrawString("Hand Left: " + Math.Round(bodyJoints.leftHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(10, 30));
+                            graphics.DrawString("Shoulder Right: " + Math.Round(bodyJoints.rightShoulder.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 10));
+                            graphics.DrawString("Elbow Right: " + Math.Round(bodyJoints.rightElbow.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 20));
+                            graphics.DrawString("Hand Right: " + Math.Round(bodyJoints.rightHand.Z, 4), new Font("Tahoma", 8), Brushes.Red, new System.Drawing.PointF(140, 30));
+                            graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2 - 3, depthHeight / 2), new Point(depthWidth / 2 + 3, depthHeight / 2));
+                            graphics.DrawLine(new Pen(Color.Red), new Point(depthWidth / 2, depthHeight / 2 - 3), new Point(depthWidth / 2, depthHeight / 2 + 3));
 
-                    img.Dispose();
-                    img2.Dispose();
+                            img.Dispose();
+                        }
+                        catch(Exception e)
+                        {
+                            break;
+                        }
+                    }
                 }
                 timer--;
                 
@@ -677,7 +802,7 @@ namespace VolumeScanner
             {
                 //acquire latest frames
                 reader.AcquireLatestFrame();
-                bodyReader.AcquireLatestFrame();
+                //bodyReader.AcquireLatestFrame();
                 Thread.Sleep(10000);
             }
         }
@@ -829,12 +954,14 @@ namespace VolumeScanner
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        /// 
+        /*
         private void DepthStart_Scroll(object sender, EventArgs e)
         {
             depthStart = depthStartSlider.Value;
             depthStartLabel.Text = "" + depthStart;
         }
-
+        */
         /// <summary>
         /// Method to find the volume cluster using a seed pixel as a basis to start from
         /// Could probably be optimized better.
@@ -874,7 +1001,7 @@ namespace VolumeScanner
                         toCheck.Push(curr - 1);
                     }
                     //check pixel right of current
-                    if (curr + 1 < depthWidth * depthHeight && CalculateDifference(curr, curr + 1, depthPixels) < absoluteThreshold)
+                    if (curr + 1 < depthWidth * depthHeight && arr[curr + 1] != 1 && CalculateDifference(curr, curr + 1, depthPixels) < absoluteThreshold)
                     {
                         toCheck.Push(curr + 1);
                     }
@@ -903,30 +1030,32 @@ namespace VolumeScanner
                 while (toCheck.Count != 0)
                 {
                     int curr = toCheck.Pop();
-                    if (curr / depthWidth > upperBound && curr / depthWidth < lowerBound && curr % depthWidth > leftBound && curr % depthWidth < rightBound)
+                    int x = curr % depthWidth;
+                    int y = curr / depthWidth;
+                    if (y > upperBound && y < lowerBound && x > leftBound && x < rightBound)
                     {
-                        double left = CalculateDifference(curr, curr - depthWidth, depthPixels);
-                        double right = CalculateDifference(curr, curr + depthWidth, depthPixels);
-                        double up = CalculateDifference(curr, curr - 1, depthPixels);
-                        double down = CalculateDifference(curr, curr + 1, depthPixels);
-                        if (!(Double.IsInfinity(left) || Double.IsInfinity(right) || Double.IsInfinity(up) || Double.IsInfinity(down)))
+                        double up = CalculateDifference(curr, curr - depthWidth, depthPixels);
+                        double down = CalculateDifference(curr, curr + depthWidth, depthPixels);
+                        double left = CalculateDifference(curr, curr - 1, depthPixels);
+                        double right = CalculateDifference(curr, curr + 1, depthPixels);
+                        if (!(Double.IsInfinity(up) || Double.IsInfinity(down) || Double.IsInfinity(left) || Double.IsInfinity(right)))
                         {
                             arr[curr] = 1;
-                            if (yMaxDepth[curr / depthWidth] < depthPixels[curr]) yMaxDepth[curr / depthWidth] = depthPixels[curr];
-                            if (xMaxDepth[curr % depthWidth] < depthPixels[curr]) xMaxDepth[curr % depthWidth] = depthPixels[curr];
-                            if (curr - depthWidth >= 0 && arr[curr - depthWidth] != 1 && left < absoluteThreshold)
+                            if (yMaxDepth[y] < depthPixels[curr]) yMaxDepth[y] = depthPixels[curr];
+                            if (xMaxDepth[x] < depthPixels[curr]) xMaxDepth[x] = depthPixels[curr];
+                            if (curr - depthWidth >= 0 && arr[curr - depthWidth] != 1 && up < absoluteThreshold)
                             {
                                 toCheck.Push(curr - depthWidth);
                             }
-                            if (curr + depthWidth < depthWidth * depthHeight && arr[curr + depthWidth] != 1 && right < absoluteThreshold)
+                            if (curr + depthWidth < depthWidth * depthHeight && arr[curr + depthWidth] != 1 && down < absoluteThreshold)
                             {
                                 toCheck.Push(curr + depthWidth);
                             }
-                            if (curr - 1 >= 0 && arr[curr - 1] != 1 && up < absoluteThreshold)
+                            if (curr - 1 >= 0 && arr[curr - 1] != 1 && left < absoluteThreshold)
                             {
                                 toCheck.Push(curr - 1);
                             }
-                            if (curr + 1 < depthWidth * depthHeight && down < absoluteThreshold)
+                            if (curr + 1 < depthWidth * depthHeight && arr[curr + 1] != 1 && right < absoluteThreshold)
                             {
                                 toCheck.Push(curr + 1);
                             }
@@ -1020,6 +1149,7 @@ namespace VolumeScanner
 
         /// <summary>
         /// Method for converting RGB values to LAB for calculation
+        /// Used for color-based object segmentation
         /// </summary>
         /// <param name="red">red value</param>
         /// <param name="green">green value</param>
@@ -1194,7 +1324,7 @@ namespace VolumeScanner
         /// <param name="data">the data to integrate</param>
         /// 
         /// <returns>estimated volume</returns>
-        private double IntegrateDepths(List<Point3D> data, ushort[] xMaxDepths, ushort[] yMaxDepths)
+        private double IntegrateDepths(List<Point3D> data, int[] contains, ushort[] xMaxDepths, ushort[] yMaxDepths)
         {
 
             double xSum = 0;
@@ -1222,12 +1352,13 @@ namespace VolumeScanner
                     {
                         try
                         {
+                            /*
                             int multiplier = 1;
                             double left;
                             double right;
                             double up;
                             double down;
-                            if (data.Contains(new Point3D(p.x - 1, p.y, p.z)))
+                            if (contains[p.x - 1 + p.y * depthWidth] == 1)
                             {
                                 left = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].X - cameraSpacePoints[p.y * depthWidth + p.x - 1].X);
                             }
@@ -1236,7 +1367,7 @@ namespace VolumeScanner
                                 left = 0;
                                 multiplier = 2;
                             }
-                            if (data.Contains(new Point3D(p.x + 1, p.y, p.z)))
+                            if (contains[p.x + 1 + p.y * depthWidth] == 1)
                             {
                                 right = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].X - cameraSpacePoints[p.y * depthWidth + p.x + 1].X);
                             }
@@ -1251,7 +1382,7 @@ namespace VolumeScanner
                             }
                             double Xavg = multiplier * (left + right) / 2.0;
                             multiplier = 1;
-                            if (data.Contains(new Point3D(p.x, p.y - 1, p.z)))
+                            if (contains[p.x + (p.y - 1) * depthWidth] == 1)
                             {
                                 up = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].Y - cameraSpacePoints[(p.y - 1) * depthWidth + p.x].Y);
                             }
@@ -1260,7 +1391,7 @@ namespace VolumeScanner
                                 up = 0;
                                 multiplier = 2;
                             }
-                            if (data.Contains(new Point3D(p.x, p.y + 1, p.z)))
+                            if (contains[p.x + (p.y + 1) * depthWidth] == 1)
                             {
                                 down = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].Y - cameraSpacePoints[(p.y + 1) * depthWidth + p.x].Y);
                             }
@@ -1275,6 +1406,10 @@ namespace VolumeScanner
                             }
                             double Yavg = multiplier * (up + down) / 2.0;
                             double unit = 1000000 * Xavg * Yavg;
+                            */
+
+                            double unit = (Math.Tan(70) * 2 * p.z / depthWidth) * (Math.Tan(60) * 2 * p.z / depthHeight);
+
                             double xNewDepth = xMaxDepths[p.x] - p.z;
                             double yNewDepth = yMaxDepths[p.y] - p.z;
 
@@ -1301,22 +1436,21 @@ namespace VolumeScanner
             }
             Console.WriteLine("Volume with respect to X: " + xSum);
             Console.WriteLine("Volume with respect to Y: " + ySum);
-            return (xSum + ySum) / 2.0;
+            return Math.Max(xSum, ySum);
             /*
             if (ySum > xSum) return ySum;
             else return xSum;*/
         }
 
-        private double IntegrateDepths(List<Point3D> data, double x1, double z1, double x2, double z2, double x3, double z3)
+        private double IntegrateDepths(List<Point3D> data, int[] contains, double x1, double z1, double x2, double z2, double x3, double z3)
         {
-              
+            
             double sum = 0;
             
             lock (this)
             {
                 if (data.Count >= 5)
                 {
-                   
                     foreach (Point3D p in data)
                     {
                         double depthStart = 0;
@@ -1335,7 +1469,7 @@ namespace VolumeScanner
                             double right;
                             double up;
                             double down;
-                            if (data.Contains(new Point3D(p.x - 1, p.y, p.z)))
+                            if (contains[p.y * depthWidth + p.x - 1] == 1)
                             {
                                 left = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].X - cameraSpacePoints[p.y * depthWidth + p.x - 1].X);
                             }
@@ -1344,7 +1478,7 @@ namespace VolumeScanner
                                 left = 0;
                                 multiplier = 2;
                             }
-                            if (data.Contains(new Point3D(p.x + 1, p.y, p.z)))
+                            if (contains[p.y * depthWidth + p.x + 1] == 1)
                             {
                                 right = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].X - cameraSpacePoints[p.y * depthWidth + p.x + 1].X);
                             }
@@ -1359,7 +1493,7 @@ namespace VolumeScanner
                             }
                             double Xavg = multiplier * (left + right) / 2.0;
                             multiplier = 1;
-                            if (data.Contains(new Point3D(p.x, p.y - 1, p.z)))
+                            if (contains[(p.y - 1) * depthWidth + p.x] == 1)
                             {
                                 up = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].Y - cameraSpacePoints[(p.y - 1) * depthWidth + p.x].Y);
                             }
@@ -1368,7 +1502,7 @@ namespace VolumeScanner
                                 up = 0;
                                 multiplier = 2;
                             }
-                            if (data.Contains(new Point3D(p.x, p.y + 1, p.z)))
+                            if (contains[(p.y + 1) * depthWidth + p.x] == 1)
                             {
                                 down = Math.Abs(cameraSpacePoints[p.y * depthWidth + p.x].Y - cameraSpacePoints[(p.y + 1) * depthWidth + p.x].Y);
                             }
@@ -1397,6 +1531,7 @@ namespace VolumeScanner
             return sum;
         }
 
+        /*
         /// <summary>
         /// Event handler for when a body frame arrives
         /// Updates body info and sets data in bodyJoints
@@ -1404,7 +1539,8 @@ namespace VolumeScanner
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private void Reader_BodySourceFrameArrived(object sender, BodyFrameArrivedEventArgs e)
-        {       
+        {
+            Console.WriteLine("Arrived!");
             bool dataReceived = false;
             using (BodyFrame bodyFrame = e.FrameReference.AcquireFrame())
             {
@@ -1433,13 +1569,22 @@ namespace VolumeScanner
                         bodyJoints.spine = body.Joints[JointType.SpineMid].Position;
                         bodyJoints.rightHand = body.Joints[JointType.HandRight].Position;
                         bodyJoints.leftHand = body.Joints[JointType.HandLeft].Position;
+                        Console.WriteLine("Confidence: " + body.HandLeftConfidence);
+                    }
+                    else if (i == 0)
+                    {
+                        bodyJoints = new Skeleton();
                     }
                 }
             }
-            if (i == 0) bodies = null;         
+            if (i == 0)
+            {
+                bodies = null;
+            }
+         //DISPOSE BODY FRAME!
 
         }
-
+        */
         /// <summary>
         /// Event handler for multiSourceFrame arrived event
         /// Fills in depth and color data to their appropriate variables as well as any smoothing
@@ -1447,8 +1592,7 @@ namespace VolumeScanner
         /// <param name="sender">object sending the event</param>
         /// <param name="e">event arguments</param>
         private void Reader_MultiSourceFrameArrived(object sender, MultiSourceFrameArrivedEventArgs e)
-        {           
-
+        {
             bool validDepth = false;
             bool validColor = false;
 
@@ -1456,6 +1600,8 @@ namespace VolumeScanner
             MultiSourceFrame multiSourceFrame = null;
             DepthFrame depthFrame = null;
             ColorFrame colorFrame = null;
+            BodyFrame bodyFrame = null;
+            
             //InfraredFrame infFrame = null;
 
             ushort[] temp = new ushort[depthImagePixels.Length];
@@ -1466,10 +1612,12 @@ namespace VolumeScanner
             {
                 DepthFrameReference depthFrameReference = multiSourceFrame.DepthFrameReference;
                 ColorFrameReference colorFrameReference = multiSourceFrame.ColorFrameReference;
+                BodyFrameReference bodyFrameReference = multiSourceFrame.BodyFrameReference;
                 //InfraredFrameReference infFrameReference = multiSourceFrame.InfraredFrameReference;
 
                 depthFrame = depthFrameReference.AcquireFrame();
                 colorFrame = colorFrameReference.AcquireFrame();
+                bodyFrame = bodyFrameReference.AcquireFrame();
                 //infFrame = infFrameReference.AcquireFrame();
 
                 if (depthFrame != null)
@@ -1500,7 +1648,51 @@ namespace VolumeScanner
                     }
                     colorFrame.Dispose();
                 }
-               
+               if (bodyFrame != null)
+               {
+                   bool dataReceived = false;
+                   
+
+                    if (bodyFrame.BodyCount != 0)
+                    {
+                        bodies = new Body[bodyFrame.BodyCount];
+                        bodyFrame.GetAndRefreshBodyData(bodies);
+                        dataReceived = true;
+                    }
+                    
+                   
+                   int i = 0;
+                   if (dataReceived && bodies != null)
+                   {
+                       foreach (Body body in bodies)
+                       {
+                           i++;
+                           if (!isProcessing)
+                           {
+                               if (body != null && body.IsTracked)
+                               {
+                                   bodyJoints.rightElbow = body.Joints[JointType.ElbowRight].Position;
+                                   bodyJoints.rightShoulder = body.Joints[JointType.ShoulderRight].Position;
+                                   bodyJoints.leftElbow = body.Joints[JointType.ElbowLeft].Position;
+                                   bodyJoints.leftShoulder = body.Joints[JointType.ShoulderLeft].Position;
+                                   bodyJoints.spine = body.Joints[JointType.SpineMid].Position;
+                                   bodyJoints.rightHand = body.Joints[JointType.HandRight].Position;
+                                   bodyJoints.leftHand = body.Joints[JointType.HandLeft].Position;
+                                   //Console.WriteLine("Confidence: " + body.HandLeftConfidence);
+                               }
+                               else if (i == 0)
+                               {
+                                   bodyJoints = new Skeleton();
+                               }
+                           }
+                       }
+                   }
+                   if (i == 0)
+                   {
+                       bodies = null;
+                   }
+                   bodyFrame.Dispose();
+               }
                 /*
                 if (infFrame != null)
                 {
@@ -1564,7 +1756,7 @@ namespace VolumeScanner
         }
 
         /// <summary>
-        /// Frame smoothing method.  Works fairly well but is VERY slow.  Can be used in order to get more accurate calculations. Uses median
+        /// Frame smoothing method.  Works fairly well but is fairly slow.  Can be used in order to get more accurate calculations. Uses median
         /// Other method is faster, so it is probably better to use that.
         /// Updated: 11/14/2014
         /// </summary>
@@ -1600,9 +1792,9 @@ namespace VolumeScanner
                             toReturn[i] = list[list.Count / 2];
                         }
                     }
-                    catch
+                    catch (Exception e)
                     {
-
+                        Console.WriteLine(e.Message);
                     }
                 }
             });

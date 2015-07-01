@@ -41,19 +41,15 @@
             this.frameSlider = new System.Windows.Forms.TrackBar();
             this.intValueLbl = new System.Windows.Forms.Label();
             this.label6 = new System.Windows.Forms.Label();
-            this.depStSlider = new System.Windows.Forms.TrackBar();
-            this.depStLbl = new System.Windows.Forms.Label();
-            this.label7 = new System.Windows.Forms.Label();
             this.dumpButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.weightSlider)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.threshSlider)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.frameSlider)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.depStSlider)).BeginInit();
             this.SuspendLayout();
             // 
             // weightSlider
             // 
-            this.weightSlider.Location = new System.Drawing.Point(53, 496);
+            this.weightSlider.Location = new System.Drawing.Point(78, 521);
             this.weightSlider.Maximum = 100;
             this.weightSlider.Name = "weightSlider";
             this.weightSlider.Size = new System.Drawing.Size(347, 45);
@@ -64,7 +60,7 @@
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(406, 496);
+            this.label1.Location = new System.Drawing.Point(431, 521);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(36, 13);
             this.label1.TabIndex = 1;
@@ -73,7 +69,7 @@
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(16, 496);
+            this.label2.Location = new System.Drawing.Point(41, 521);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(31, 13);
             this.label2.TabIndex = 2;
@@ -82,7 +78,7 @@
             // wgtValueLbl
             // 
             this.wgtValueLbl.AutoSize = true;
-            this.wgtValueLbl.Location = new System.Drawing.Point(209, 480);
+            this.wgtValueLbl.Location = new System.Drawing.Point(234, 505);
             this.wgtValueLbl.Name = "wgtValueLbl";
             this.wgtValueLbl.Size = new System.Drawing.Size(22, 13);
             this.wgtValueLbl.TabIndex = 3;
@@ -91,7 +87,7 @@
             // absValueLbl
             // 
             this.absValueLbl.AutoSize = true;
-            this.absValueLbl.Location = new System.Drawing.Point(209, 416);
+            this.absValueLbl.Location = new System.Drawing.Point(234, 441);
             this.absValueLbl.Name = "absValueLbl";
             this.absValueLbl.Size = new System.Drawing.Size(25, 13);
             this.absValueLbl.TabIndex = 7;
@@ -100,7 +96,7 @@
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(59, 416);
+            this.label4.Location = new System.Drawing.Point(84, 441);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(98, 13);
             this.label4.TabIndex = 6;
@@ -108,7 +104,7 @@
             // 
             // threshSlider
             // 
-            this.threshSlider.Location = new System.Drawing.Point(53, 432);
+            this.threshSlider.Location = new System.Drawing.Point(78, 457);
             this.threshSlider.Maximum = 200;
             this.threshSlider.Name = "threshSlider";
             this.threshSlider.Size = new System.Drawing.Size(347, 45);
@@ -120,7 +116,7 @@
             // label5
             // 
             this.label5.AutoSize = true;
-            this.label5.Location = new System.Drawing.Point(59, 480);
+            this.label5.Location = new System.Drawing.Point(84, 505);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(55, 13);
             this.label5.TabIndex = 8;
@@ -128,7 +124,7 @@
             // 
             // smoothButton
             // 
-            this.smoothButton.Location = new System.Drawing.Point(237, 634);
+            this.smoothButton.Location = new System.Drawing.Point(157, 639);
             this.smoothButton.Name = "smoothButton";
             this.smoothButton.Size = new System.Drawing.Size(119, 31);
             this.smoothButton.TabIndex = 9;
@@ -137,7 +133,7 @@
             // 
             // colorButton
             // 
-            this.colorButton.Location = new System.Drawing.Point(145, 634);
+            this.colorButton.Location = new System.Drawing.Point(65, 639);
             this.colorButton.Name = "colorButton";
             this.colorButton.Size = new System.Drawing.Size(77, 31);
             this.colorButton.TabIndex = 10;
@@ -146,7 +142,7 @@
             // 
             // frameSlider
             // 
-            this.frameSlider.Location = new System.Drawing.Point(53, 563);
+            this.frameSlider.Location = new System.Drawing.Point(78, 588);
             this.frameSlider.Maximum = 100;
             this.frameSlider.Minimum = 1;
             this.frameSlider.Name = "frameSlider";
@@ -158,7 +154,7 @@
             // intValueLbl
             // 
             this.intValueLbl.AutoSize = true;
-            this.intValueLbl.Location = new System.Drawing.Point(209, 544);
+            this.intValueLbl.Location = new System.Drawing.Point(234, 569);
             this.intValueLbl.Name = "intValueLbl";
             this.intValueLbl.Size = new System.Drawing.Size(13, 13);
             this.intValueLbl.TabIndex = 12;
@@ -168,44 +164,15 @@
             // label6
             // 
             this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(59, 544);
+            this.label6.Location = new System.Drawing.Point(84, 569);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(122, 13);
             this.label6.TabIndex = 13;
             this.label6.Text = "Frame Integration Factor";
             // 
-            // depStSlider
-            // 
-            this.depStSlider.Location = new System.Drawing.Point(478, 432);
-            this.depStSlider.Maximum = 1500;
-            this.depStSlider.Minimum = 500;
-            this.depStSlider.Name = "depStSlider";
-            this.depStSlider.Size = new System.Drawing.Size(347, 45);
-            this.depStSlider.TabIndex = 14;
-            this.depStSlider.TickFrequency = 50;
-            this.depStSlider.Value = 500;
-            // 
-            // depStLbl
-            // 
-            this.depStLbl.AutoSize = true;
-            this.depStLbl.Location = new System.Drawing.Point(659, 416);
-            this.depStLbl.Name = "depStLbl";
-            this.depStLbl.Size = new System.Drawing.Size(25, 13);
-            this.depStLbl.TabIndex = 15;
-            this.depStLbl.Text = "500";
-            // 
-            // label7
-            // 
-            this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(486, 416);
-            this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(114, 13);
-            this.label7.TabIndex = 16;
-            this.label7.Text = "Integration Depth Start";
-            // 
             // dumpButton
             // 
-            this.dumpButton.Location = new System.Drawing.Point(376, 634);
+            this.dumpButton.Location = new System.Drawing.Point(296, 639);
             this.dumpButton.Name = "dumpButton";
             this.dumpButton.Size = new System.Drawing.Size(142, 31);
             this.dumpButton.TabIndex = 17;
@@ -216,11 +183,8 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(893, 691);
+            this.ClientSize = new System.Drawing.Size(509, 691);
             this.Controls.Add(this.dumpButton);
-            this.Controls.Add(this.label7);
-            this.Controls.Add(this.depStLbl);
-            this.Controls.Add(this.depStSlider);
             this.Controls.Add(this.label6);
             this.Controls.Add(this.intValueLbl);
             this.Controls.Add(this.frameSlider);
@@ -240,7 +204,6 @@
             ((System.ComponentModel.ISupportInitialize)(this.weightSlider)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.threshSlider)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.frameSlider)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.depStSlider)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -261,9 +224,6 @@
         private System.Windows.Forms.TrackBar frameSlider;
         private System.Windows.Forms.Label intValueLbl;
         private System.Windows.Forms.Label label6;
-        private System.Windows.Forms.TrackBar depStSlider;
-        private System.Windows.Forms.Label depStLbl;
-        private System.Windows.Forms.Label label7;
         private System.Windows.Forms.Button dumpButton;
 
     }
